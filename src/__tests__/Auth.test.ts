@@ -12,6 +12,8 @@ import {
   updateProfile,
   sendPasswordResetEmail,
   sendEmailVerification,
+  setPersistence,
+  browserLocalPersistence,
 } from 'firebase/auth'
 import { createMockUser, createMockUserCredential } from './helpers/firebase-mocks'
 
@@ -49,6 +51,15 @@ describe('Auth', () => {
 
       expect(getAuth).toHaveBeenCalled()
       expect(onAuthStateChanged).toHaveBeenCalled()
+    })
+
+    it('should set browserLocalPersistence for session persistence', () => {
+      auth.initialize()
+
+      expect(setPersistence).toHaveBeenCalledWith(
+        expect.anything(),
+        browserLocalPersistence
+      )
     })
 
     it('should not initialize twice', () => {

@@ -60,6 +60,9 @@ vi.mock('firebase/firestore', () => ({
   serverTimestamp: vi.fn(() => MockTimestamp.now()),
 }))
 
+// Mock persistence object
+export const mockBrowserLocalPersistence = { type: 'LOCAL' }
+
 // Mock firebase/auth
 vi.mock('firebase/auth', () => ({
   getAuth: vi.fn(() => mockAuth),
@@ -72,6 +75,8 @@ vi.mock('firebase/auth', () => ({
   updateProfile: vi.fn(),
   sendPasswordResetEmail: vi.fn(),
   sendEmailVerification: vi.fn(),
+  setPersistence: vi.fn().mockResolvedValue(undefined),
+  browserLocalPersistence: { type: 'LOCAL' },
 }))
 
 // Reset mocks before each test

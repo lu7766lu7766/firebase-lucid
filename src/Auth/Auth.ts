@@ -10,7 +10,9 @@ import {
   signInWithPopup,
   updateProfile,
   sendPasswordResetEmail,
-  sendEmailVerification
+  sendEmailVerification,
+  browserLocalPersistence,
+  setPersistence
 } from 'firebase/auth'
 import { db } from '../Database/Database'
 import type { LoginCredentials, RegisterData } from './types'
@@ -41,6 +43,9 @@ class Auth {
     try {
       const app = db.getApp()
       this.auth = getAuth(app)
+
+      // 設定持久化 - 確保登入狀態保存在 localStorage
+      setPersistence(this.auth, browserLocalPersistence).catch(console.error)
 
       // 監聽認證狀態
       onAuthStateChanged(this.auth, (user) => {
