@@ -1,9 +1,16 @@
-import { db, Model, auth, FirebaseConfig } from 'firebase-lucid'
+import { db, Model, auth } from 'firebase-lucid'
 
 // ========================================
 // 1. 初始化 Firebase（從應用層注入配置）
 // ========================================
-const config = FirebaseConfig.fromEnv(import.meta.env)
+const config = {
+  apiKey: 'your-api-key',
+  projectId: 'your-project-id',
+  authDomain: 'your-auth-domain',
+  storageBucket: 'your-storage-bucket',
+  messagingSenderId: 'your-sender-id',
+  appId: 'your-app-id'
+}
 db.initialize(config)
 
 // ========================================

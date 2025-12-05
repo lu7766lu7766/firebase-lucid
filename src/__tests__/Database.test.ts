@@ -2,24 +2,11 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { Database, db } from '../Database/Database'
 import { initializeApp } from 'firebase/app'
 import { getFirestore } from 'firebase/firestore'
-import { FirebaseConfig } from '../Config/FirebaseConfig'
-
 describe('Database', () => {
-  const originalEnv = process.env
-
   beforeEach(() => {
     // Reset database before each test
     db.reset()
     vi.clearAllMocks()
-
-    // Setup environment variables for FirebaseConfig
-    process.env = { ...originalEnv }
-    process.env.FIREBASE_API_KEY = 'test-api-key'
-    process.env.FIREBASE_PROJECT_ID = 'test-project-id'
-  })
-
-  afterEach(() => {
-    process.env = originalEnv
   })
 
   describe('getInstance()', () => {
@@ -48,19 +35,6 @@ describe('Database', () => {
 
       expect(initializeApp).toHaveBeenCalledWith(config)
       expect(getFirestore).toHaveBeenCalled()
-      expect(db.isInitialized()).toBe(true)
-    })
-
-    it('should allow building config from env object', () => {
-      const env = {
-        VITE_FIREBASE_API_KEY: 'test-api-key',
-        VITE_FIREBASE_PROJECT_ID: 'test-project-id'
-      }
-
-      const config = FirebaseConfig.fromEnv(env)
-      db.initialize(config)
-
-      expect(initializeApp).toHaveBeenCalledWith(config)
       expect(db.isInitialized()).toBe(true)
     })
 

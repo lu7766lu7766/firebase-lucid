@@ -1,6 +1,13 @@
 import { initializeApp, FirebaseApp, FirebaseOptions } from 'firebase/app'
 import { getFirestore, Firestore } from 'firebase/firestore'
-import { FirebaseConfig } from '../Config/FirebaseConfig'
+const ensureConfig = (config?: FirebaseOptions): FirebaseOptions => {
+  if (!config || !config.apiKey || !config.projectId) {
+    throw new Error(
+      'Firebase configuration is incomplete. Please provide apiKey and projectId when calling db.initialize(config).'
+    )
+  }
+  return config
+}
 
 class Database {
   private static instance: Database
@@ -19,7 +26,7 @@ class Database {
 
   /**
    * 初始化 Firebase
-   * @param config 必填配置；請從應用層傳入（例如使用 FirebaseConfig.fromEnv(import.meta.env)）
+   * @param config 必填配置；請從應用層傳入
    * @example
    * // 在應用層組裝配置後初始化
    * db.initialize({
@@ -35,7 +42,7 @@ class Database {
     }
 
     try {
-      const firebaseConfig = FirebaseConfig.ensureConfig(config)
+      const firebaseConfig = ensureConfig(config)
       this.app = initializeApp(firebaseConfig)
       this.firestore = getFirestore(this.app)
       this.initialized = true
@@ -55,8 +62,8 @@ class Database {
       throw new Error(
         'Database not initialized. Please call db.initialize(config) first.\n' +
         'Example:\n' +
-        '  import { db, FirebaseConfig } from "firebase-lucid"\n' +
-        '  const config = FirebaseConfig.fromEnv(import.meta.env)\n' +
+        '  import { db } from "firebase-lucid"\n' +
+        '  const config = { apiKey: "...", projectId: "..." }\n' +
         '  db.initialize(config)'
       )
     }

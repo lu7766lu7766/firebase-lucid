@@ -247,8 +247,8 @@ class Auth {
         throw new Error(
           'Auth not initialized. Please call db.initialize(config) first.\n' +
           'Example:\n' +
-          '  import { db, FirebaseConfig } from "firebase-lucid"\n' +
-          '  const config = FirebaseConfig.fromEnv(import.meta.env)\n' +
+          '  import { db } from "firebase-lucid"\n' +
+          '  const config = { apiKey: "...", projectId: "..." }\n' +
           '  db.initialize(config)'
         )
       }
