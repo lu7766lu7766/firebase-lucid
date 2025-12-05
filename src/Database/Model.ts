@@ -37,6 +37,23 @@ export abstract class Model {
     timestamps: true
   }
 
+  /**
+   * 關聯定義物件
+   * 覆寫此屬性以啟用 preload 的型別提示
+   *
+   * @example
+   * class User extends Model {
+   *   static $relations = {
+   *     posts: () => this.hasMany(Post, { type: 'foreignKey', foreignKey: 'userId' }),
+   *     organization: () => this.belongsTo(Organization, { type: 'foreignKey', foreignKey: 'organizationId' })
+   *   } as const
+   * }
+   *
+   * // 使用時會有自動補全
+   * User.query().preload('posts')  // 提示: 'posts' | 'organization'
+   */
+  static $relations?: Record<string, () => any>
+
   // ===== Lifecycle Hooks（子類可覆寫）=====
 
   /**
@@ -130,9 +147,11 @@ export abstract class Model {
    * @example
    * User.query().where('age', '>', 18).limit(10).get()
    */
-  static query<T extends Model>(this: new () => T, collectionPath?: string): QueryBuilder<T> {
-    const ModelClass = this as any
-    return new QueryBuilder<T>(ModelClass, collectionPath || ModelClass.getCollectionName())
+  static query<T extends Model, M extends typeof Model = typeof Model>(
+    this: M & (new () => T),
+    collectionPath?: string
+  ): QueryBuilder<T, M> {
+    return new QueryBuilder<T, M>(this as any, collectionPath || (this as any).getCollectionName())
   }
 
   // ===== 關聯定義方法 =====
@@ -388,7 +407,37 @@ export abstract class Model {
       instance.$original.updatedAt = data.updatedAt.toDate()
     }
 
+    // 為 $relations 中定義的關聯建立 getter
+    this.setupRelationGetters(instance)
+
     return instance
+  }
+
+  /**
+   * 為實例設定關聯的 getter
+   * 讓 user.posts 可以直接取得 user.$relations.posts
+   */
+  private static setupRelationGetters(instance: Model): void {
+    const ModelClass = this as any
+    const relations = ModelClass.$relations
+
+    if (!relations) return
+
+    for (const relationName of Object.keys(relations)) {
+      // 如果實例上已經有這個屬性（例如資料欄位），跳過
+      if (relationName in instance && !(instance as any)[relationName] === undefined) {
+        continue
+      }
+
+      // 定義 getter
+      Object.defineProperty(instance, relationName, {
+        get() {
+          return this.$relations[relationName]
+        },
+        enumerable: true,
+        configurable: true
+      })
+    }
   }
 
   /**

@@ -62,7 +62,12 @@ export class PreloadManager {
     config: PreloadConfig
   ): Promise<void> {
     const ModelClass = models[0].constructor as any
-    const relationMethod = ModelClass[config.relation]
+
+    // 優先從 $relations 物件查找，再從靜態方法查找
+    let relationMethod = ModelClass.$relations?.[config.relation]
+    if (!relationMethod) {
+      relationMethod = ModelClass[config.relation]
+    }
 
     if (!relationMethod) {
       throw new Error(`Relation "${config.relation}" not defined on ${ModelClass.name}`)

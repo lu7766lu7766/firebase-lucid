@@ -6,7 +6,10 @@ export type * from "./Database/types"
 
 // Relations
 export { BaseRelation, BelongsTo, HasMany, ManyToMany, PreloadManager } from "./Database/Relations"
-export type { RelationType, StorageType, HasManyConfig, BelongsToConfig, ManyToManyConfig, PreloadCallback } from "./Database/Relations"
+export type { RelationType, StorageType, HasManyConfig, BelongsToConfig, ManyToManyConfig, PreloadCallback, RelationNames, InferRelations, ModelWithRelations } from "./Database/Relations"
+
+// Decorators (Lucid style)
+export { hasMany, belongsTo, manyToMany } from "./Database/Decorators"
 
 // Hooks
 export { HookManager } from "./Database/Hooks"

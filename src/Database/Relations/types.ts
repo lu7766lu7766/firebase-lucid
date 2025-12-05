@@ -120,3 +120,72 @@ export interface BaseRelationInstance<_Parent extends Model, Related extends Mod
    */
   query(): QueryBuilder<Related>
 }
+
+/**
+ * 從 Model 類別提取關聯名稱
+ * 用於 preload() 方法的型別提示
+ *
+ * @example
+ * class User extends Model {
+ *   static $relations = {
+ *     posts: () => this.hasMany(Post, { type: 'foreignKey', foreignKey: 'userId' }),
+ *     organization: () => this.belongsTo(Organization, { type: 'foreignKey', foreignKey: 'organizationId' })
+ *   } as const
+ * }
+ *
+ * // RelationNames<typeof User> = 'posts' | 'organization'
+ */
+export type RelationNames<T> = T extends { $relations: infer R }
+  ? keyof R & string
+  : string
+
+// ===== 關聯型別推斷工具 =====
+
+// 引入關聯類別（僅用於型別）
+import type { BelongsTo } from './BelongsTo'
+import type { HasMany } from './HasMany'
+import type { ManyToMany } from './ManyToMany'
+
+/**
+ * 從關聯實例提取 Related Model 型別
+ */
+type ExtractRelatedModel<T> =
+  T extends BelongsTo<any, infer R> ? R | null :
+  T extends HasMany<any, infer R> ? R[] :
+  T extends ManyToMany<any, infer R> ? R[] :
+  unknown
+
+/**
+ * 從關聯工廠函數提取返回的關聯型別
+ */
+type ExtractFromFactory<T> =
+  T extends () => (parent: any) => infer Relation
+    ? ExtractRelatedModel<Relation>
+    : unknown
+
+/**
+ * 從 $relations 物件推斷所有關聯的型別
+ *
+ * @example
+ * class User extends Model {
+ *   static $relations = {
+ *     posts: () => this.hasMany(Post, { ... }),
+ *     organization: () => this.belongsTo(Organization, { ... }),
+ *   } as const
+ * }
+ *
+ * // InferRelations<typeof User> = { posts: Post[], organization: Organization | null }
+ */
+export type InferRelations<T> = T extends { $relations: infer R }
+  ? { [K in keyof R]: ExtractFromFactory<R[K]> }
+  : {}
+
+/**
+ * 帶有推斷關聯屬性的 Model 型別
+ * 用於讓 user.posts 有正確的型別
+ *
+ * @example
+ * type UserWithRelations = ModelWithRelations<User, typeof User>
+ * // UserWithRelations 包含 posts: Post[] 和 organization: Organization | null
+ */
+export type ModelWithRelations<Instance, Class> = Instance & InferRelations<Class>

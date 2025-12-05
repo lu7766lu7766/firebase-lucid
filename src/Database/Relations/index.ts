@@ -15,5 +15,8 @@ export type {
   ManyToManyConfig,
   PreloadCallback,
   RelationDefinition,
-  BaseRelationInstance
+  BaseRelationInstance,
+  RelationNames,
+  InferRelations,
+  ModelWithRelations
 } from './types'

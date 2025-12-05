@@ -17,12 +17,15 @@ import {
   Timestamp
 } from 'firebase/firestore'
 import { db } from './Database'
-import type { Model } from './Model'
+import { Model } from './Model'
 import type { BatchOptions, BatchResult } from './types'
-import type { PreloadCallback } from './Relations/types'
+import type { PreloadCallback, RelationNames, InferRelations } from './Relations/types'
+
+/** 帶有關聯屬性的 Model 型別 */
+type WithRelations<T, M> = T & InferRelations<M>
 import { PreloadManager } from './Relations/PreloadManager'
 
-export class QueryBuilder<T extends Model> {
+export class QueryBuilder<T extends Model, M extends typeof Model = typeof Model> {
   private constraints: QueryConstraint[] = []
   private preloadManager = new PreloadManager()
 
@@ -163,6 +166,9 @@ export class QueryBuilder<T extends Model> {
 
   /**
    * 預載入關聯 - Lucid 風格
+   *
+   * 若 Model 定義了 `$relations` 屬性，則 relation 參數會有型別提示。
+   *
    * @example
    * // 單一關聯
    * const users = await User.query().preload('posts').get()
@@ -179,8 +185,14 @@ export class QueryBuilder<T extends Model> {
    * const users = await User.query()
    *   .preload('posts', query => query.preload('comments'))
    *   .get()
+   *
+   * @param relation - 關聯名稱（若 Model 有 $relations 則會有自動補全）
+   * @param callback - 可選的查詢自定義回調
    */
-  preload(relation: string, callback?: PreloadCallback<any>): this {
+  preload<K extends RelationNames<M>>(
+    relation: K,
+    callback?: PreloadCallback<any>
+  ): this {
     this.preloadManager.register(relation, callback)
     return this
   }
@@ -190,7 +202,7 @@ export class QueryBuilder<T extends Model> {
    * @example
    * const users = await query().where('age', '>', 18).get()
    */
-  async get(): Promise<T[]> {
+  async get(): Promise<WithRelations<T, M>[]> {
     const firestore = db.getFirestore()
     const collectionRef = collection(firestore, this.collectionName)
 
@@ -216,7 +228,7 @@ export class QueryBuilder<T extends Model> {
    * @example
    * const user = await query().where('email', '==', 'john@example.com').first()
    */
-  async first(): Promise<T | null> {
+  async first(): Promise<WithRelations<T, M> | null> {
     // 暫時儲存原有的限制
     const originalConstraints = [...this.constraints]
 
@@ -235,7 +247,7 @@ export class QueryBuilder<T extends Model> {
    * @example
    * const user = await query().where('email', '==', 'john@example.com').firstOrFail()
    */
-  async firstOrFail(): Promise<T> {
+  async firstOrFail(): Promise<WithRelations<T, M>> {
     const result = await this.first()
     if (!result) {
       throw new Error(`No results found in collection "${this.collectionName}"`)

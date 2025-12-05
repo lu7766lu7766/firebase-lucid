@@ -7,6 +7,7 @@
 ## 核心特性
 
 - ✨ **Lucid 風格 API** - 優雅的 `User.find()`, `User.query().where().get()` 語法
+- 🎨 **Decorator 支援** - 類似 AdonisJS 的 `@hasMany`、`@belongsTo` decorator
 - 📦 **獨立套件** - 可用於任何 TypeScript/JavaScript 專案
 - 🔥 **完整支援** - Firestore 資料庫 + Authentication 認證
 - 💪 **TypeScript 優先** - 完整的型別定義和自動補全
@@ -15,6 +16,7 @@
 - 🔄 **批量操作** - 支援批量更新/刪除，自動處理 Firebase 500 筆限制
 - 🔗 **關聯資料表** - 支援 hasMany、belongsTo、manyToMany，含 preload 預載入
 - 🎣 **生命週期 Hooks** - beforeCreate、afterSave、beforeDelete 等完整 Hook 支援
+- 🔍 **強型別 Preload** - preload() 關聯名稱有自動補全提示
 
 ## 快速開始
 
@@ -373,8 +375,14 @@ firebase-lucid 支援三種關聯類型：`hasMany`（一對多）、`belongsTo`
 
 ### 定義關聯
 
+firebase-lucid 提供兩種定義關聯的方式：**Decorator 風格**（推薦）和 **靜態方法風格**。
+
+#### 方式 1：Decorator 風格（推薦）
+
+類似 AdonisJS Lucid 的優雅語法，使用 TypeScript decorators：
+
 ```typescript
-import { Model } from "firebase-lucid"
+import { Model, hasMany, belongsTo, manyToMany } from "firebase-lucid"
 
 // User Model - 擁有多個 Posts，屬於一個 Organization
 class User extends Model {
@@ -385,29 +393,20 @@ class User extends Model {
   organizationId!: string
 
   // HasMany：一對多關聯（User 有多個 Posts）
-  static posts() {
-    return this.hasMany(Post, {
-      type: "foreignKey",
-      foreignKey: "userId",
-    })
-  }
+  @hasMany(() => Post, { type: "foreignKey", foreignKey: "userId" })
+  declare posts: Post[]
 
   // BelongsTo：屬於關聯（User 屬於一個 Organization）
-  static organization() {
-    return this.belongsTo(Organization, {
-      type: "foreignKey",
-      foreignKey: "organizationId",
-    })
-  }
+  @belongsTo(() => Organization, { type: "foreignKey", foreignKey: "organizationId" })
+  declare organization: Organization | null
 
   // ManyToMany：多對多關聯（User 屬於多個 Groups）
-  static groups() {
-    return this.manyToMany(Group, {
-      pivotCollection: "user_groups", // 中間表
-      foreignKey: "userId",
-      relatedKey: "groupId",
-    })
-  }
+  @manyToMany(() => Group, {
+    pivotCollection: "user_groups",
+    foreignKey: "userId",
+    relatedKey: "groupId"
+  })
+  declare groups: Group[]
 }
 
 // Post Model - 屬於一個 User
@@ -419,10 +418,43 @@ class Post extends Model {
   userId!: string
 
   // BelongsTo：Post 屬於一個 User（作者）
-  static author() {
-    return this.belongsTo(User, {
+  @belongsTo(() => User, { type: "foreignKey", foreignKey: "userId" })
+  declare author: User | null
+}
+```
+
+**Decorator 風格的優點：**
+- ✨ 語法更簡潔優雅
+- 🎯 型別明確（直接使用 `declare` 宣告）
+- 🔍 IDE 自動補全關聯屬性
+- 💡 與 AdonisJS Lucid 保持一致
+
+#### 方式 2：靜態方法風格
+
+傳統的靜態方法定義方式（向後相容）：
+
+```typescript
+import { Model } from "firebase-lucid"
+
+class User extends Model {
+  static collectionName = "users"
+
+  name!: string
+  email!: string
+  organizationId!: string
+
+  // 使用靜態方法定義關聯
+  static posts() {
+    return this.hasMany(Post, {
       type: "foreignKey",
       foreignKey: "userId",
+    })
+  }
+
+  static organization() {
+    return this.belongsTo(Organization, {
+      type: "foreignKey",
+      foreignKey: "organizationId",
     })
   }
 }
@@ -447,37 +479,57 @@ const author = await Post.author().call(Post, post).get()
 
 ### Eager Loading (Preload)
 
-使用 `preload()` 批量載入關聯，避免 N+1 查詢問題：
+使用 `preload()` 批量載入關聯，避免 N+1 查詢問題。
+
+#### 使用 Decorator 風格時
+
+使用 decorator 定義關聯後，可以直接存取關聯屬性：
 
 ```typescript
 // 預載入單一關聯
 const posts = await Post.query().preload("author").get()
 
-// 透過 $relations 存取預載入的資料
+// 直接存取關聯屬性（有型別提示！）
 posts.forEach((post) => {
-  console.log(`Post: ${post.title}, Author: ${post.$relations.author?.name}`)
+  console.log(`Post: ${post.title}`)
+  console.log(`Author: ${post.author?.name}`)  // 直接用 post.author
 })
 
 // 預載入多個關聯
-const users = await User.query().preload("posts").preload("organization").get()
+const users = await User.query()
+  .preload("posts")
+  .preload("organization")
+  .get()
 
 users.forEach((user) => {
   console.log(`User: ${user.name}`)
-  console.log(`Organization: ${user.$relations.organization?.name}`)
-  console.log(`Posts count: ${user.$relations.posts?.length}`)
+  console.log(`Organization: ${user.organization?.name}`)  // 直接用 user.organization
+  console.log(`Posts count: ${user.posts?.length}`)        // 直接用 user.posts
 })
 
-// 使用回調自訂預載入查詢
+// preload 有自動補全！輸入 .preload(' 會顯示所有關聯名稱
 const users = await User.query()
   .preload("posts", (query) => {
-    query.where("status", "==", "published")
+    query.where("status", "==", "published").limit(5)
   })
   .get()
 
 // 檢查關聯是否已載入
 if (user.$isLoaded("posts")) {
-  console.log("Posts are loaded:", user.$relations.posts)
+  console.log("Posts are loaded:", user.posts)
 }
+```
+
+#### 使用靜態方法風格時
+
+需要透過 `$relations` 存取預載入的資料：
+
+```typescript
+const posts = await Post.query().preload("author").get()
+
+posts.forEach((post) => {
+  console.log(`Author: ${post.$relations.author?.name}`)
+})
 ```
 
 ### ManyToMany 操作
@@ -799,18 +851,52 @@ async function moderationTask(spamUserIds: string[]) {
 
 ```typescript
 import type {
+  // Model 相關
   ModelData,
   ModelOptions,
+
+  // 批量操作
   BatchOptions,
   BatchResult,
+
+  // 認證相關
   LoginCredentials,
   RegisterData,
+
+  // 關聯相關
+  HasManyConfig,
+  BelongsToConfig,
+  ManyToManyConfig,
+  RelationNames,
+  InferRelations,
+  ModelWithRelations,
+
+  // Firebase 型別
   FirebaseUser,
   FirebaseAuth,
   Firestore,
   DocumentData,
   Timestamp,
 } from "firebase-lucid"
+```
+
+### 進階型別使用
+
+```typescript
+// 為 Model 推斷關聯型別
+import type { InferRelations } from "firebase-lucid"
+
+class User extends Model {
+  @hasMany(() => Post, { type: "foreignKey", foreignKey: "userId" })
+  declare posts: Post[]
+}
+
+// 推斷出的關聯型別
+type UserRelations = InferRelations<typeof User>
+// { posts: Post[] }
+
+// 帶有關聯的 Model 型別
+type UserWithRelations = User & UserRelations
 ```
 
 ## 常見問題
