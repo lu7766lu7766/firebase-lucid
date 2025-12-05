@@ -1,0 +1,54 @@
+{
+  "name": "firebase-lucid",
+  "version": "0.1.0",
+  "description": "AdonisJS Lucid-style Firebase ORM for TypeScript - Simple, elegant, and easy to use",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage"
+  },
+  "keywords": [
+    "firebase",
+    "firestore",
+    "orm",
+    "lucid",
+    "adonisjs",
+    "typescript",
+    "model",
+    "query-builder",
+    "authentication"
+  ],
+  "author": "",
+  "license": "MIT",
+  "peerDependencies": {
+    "firebase": "^10.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^4.0.15",
+    "@vitest/ui": "^4.0.15",
+    "firebase": "^10.14.1",
+    "tsup": "^8.0.0",
+    "typescript": "^5.8.0",
+    "vitest": "^4.0.15"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ]
+}
