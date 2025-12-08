@@ -149,9 +149,19 @@ export interface BaseRelationInstance<_Parent extends Model, Related extends Mod
  *
  * // RelationNames<typeof User> = 'posts' | 'organization'
  */
+type DecoratedRelationKeys<T> = {
+  [K in keyof T]: NonNullable<T[K]> extends Model
+    ? K
+    : NonNullable<T[K]> extends Model[]
+      ? K
+      : never
+}[keyof T] & string
+
 export type RelationNames<T> = T extends { $relations: infer R }
   ? keyof R & string
-  : string
+  : T extends new () => infer Instance
+    ? DecoratedRelationKeys<Instance>
+    : string
 
 // ===== 關聯型別推斷工具 =====
 
