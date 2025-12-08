@@ -1,6 +1,6 @@
 {
   "name": "firebase-lucid",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "AdonisJS Lucid-style Firebase ORM for TypeScript - Simple, elegant, and easy to use",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -35,6 +35,14 @@
   ],
   "author": "",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lu7766lu7766/firebase-lucid.git"
+  },
+  "bugs": {
+    "url": "https://github.com/lu7766lu7766/firebase-lucid/issues"
+  },
+  "homepage": "https://github.com/lu7766lu7766/firebase-lucid#readme",
   "peerDependencies": {
     "firebase": "^10.0.0"
   },

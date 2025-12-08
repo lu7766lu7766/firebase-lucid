@@ -56,6 +56,8 @@ vi.mock('firebase/firestore', () => ({
   orderBy: vi.fn((field: string, direction: string) => ({ type: 'orderBy', field, direction })),
   limit: vi.fn((value: number) => ({ type: 'limit', value })),
   startAfter: vi.fn((snapshot: any) => ({ type: 'startAfter', snapshot })),
+  documentId: vi.fn(() => ({ type: 'documentId' })),
+  FieldPath: vi.fn(() => ({ type: 'FieldPath' })),
   Timestamp: MockTimestamp,
   serverTimestamp: vi.fn(() => MockTimestamp.now()),
 }))

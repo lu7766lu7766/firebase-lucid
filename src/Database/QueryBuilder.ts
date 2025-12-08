@@ -14,7 +14,9 @@ import {
   WriteBatch,
   updateDoc,
   deleteDoc,
-  Timestamp
+  Timestamp,
+  documentId,
+  FieldPath
 } from 'firebase/firestore'
 import { db } from './Database'
 import { Model } from './Model'
@@ -40,7 +42,8 @@ export class QueryBuilder<T extends Model, M extends typeof Model = typeof Model
    * query().where('age', '>', 18)
    */
   where(field: string, operator: WhereFilterOp, value: any): this {
-    this.constraints.push(where(field, operator, value))
+    const normalizedField = this.normalizeField(field)
+    this.constraints.push(where(normalizedField as any, operator, value))
     return this
   }
 
@@ -140,7 +143,8 @@ export class QueryBuilder<T extends Model, M extends typeof Model = typeof Model
    * query().orderBy('createdAt', 'desc')
    */
   orderBy(field: string, direction: OrderByDirection = 'asc'): this {
-    this.constraints.push(orderBy(field, direction))
+    const normalizedField = this.normalizeField(field)
+    this.constraints.push(orderBy(normalizedField as any, direction))
     return this
   }
 
@@ -162,6 +166,13 @@ export class QueryBuilder<T extends Model, M extends typeof Model = typeof Model
   startAfter(snapshot: DocumentSnapshot): this {
     this.constraints.push(startAfter(snapshot))
     return this
+  }
+
+  /**
+   * Firestore 文件 ID 並非實際欄位，當查詢目標為 'id' 時自動轉換成 documentId()
+   */
+  private normalizeField(field: string): string | FieldPath {
+    return field === 'id' ? documentId() : field
   }
 
   /**
