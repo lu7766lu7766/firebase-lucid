@@ -300,6 +300,7 @@ const user = await auth.register({
   email: "user@example.com",
   password: "securePassword123",
   displayName: "John Doe", // 可選
+  photoURL: "https://example.com/avatar.png", // 可選
 })
 
 // 登入

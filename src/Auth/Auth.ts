@@ -82,7 +82,8 @@ class Auth {
    * const user = await auth.register({
    *   email: 'user@example.com',
    *   password: 'password123',
-   *   displayName: 'John Doe'
+   *   displayName: 'John Doe',
+   *   photoURL: 'https://example.com/avatar.png'
    * })
    */
   async register(data: RegisterData): Promise<FirebaseUser> {
@@ -94,11 +95,17 @@ class Auth {
       data.password
     )
 
-    // 更新顯示名稱（如果提供）
+    // 更新基本個人資料（如果提供）
+    const profileUpdates: { displayName?: string; photoURL?: string } = {}
     if (data.displayName || data.name) {
-      await updateProfile(userCredential.user, {
-        displayName: data.displayName || data.name
-      })
+      profileUpdates.displayName = data.displayName || data.name
+    }
+    if (data.photoURL) {
+      profileUpdates.photoURL = data.photoURL
+    }
+
+    if (Object.keys(profileUpdates).length > 0) {
+      await updateProfile(userCredential.user, profileUpdates)
     }
 
     return userCredential.user

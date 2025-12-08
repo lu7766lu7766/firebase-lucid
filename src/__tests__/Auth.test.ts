@@ -116,7 +116,7 @@ describe('Auth', () => {
       auth.initialize()
     })
 
-    it('should register with email and password', async () => {
+    it('should register and update profile when provided', async () => {
       const mockUser = createMockUser('user-1', 'test@example.com')
       const mockCredential = createMockUserCredential(mockUser)
 
@@ -126,6 +126,7 @@ describe('Auth', () => {
         email: 'test@example.com',
         password: 'password123',
         displayName: 'Test User',
+        photoURL: 'https://example.com/avatar.png',
       })
 
       expect(createUserWithEmailAndPassword).toHaveBeenCalledWith(
@@ -134,6 +135,10 @@ describe('Auth', () => {
         'password123'
       )
       expect(user).toBe(mockUser)
+      expect(updateProfile).toHaveBeenCalledWith(mockUser, {
+        displayName: 'Test User',
+        photoURL: 'https://example.com/avatar.png',
+      })
     })
 
     it('should register without displayName', async () => {
@@ -148,6 +153,7 @@ describe('Auth', () => {
       })
 
       expect(user).toBe(mockUser)
+      expect(updateProfile).not.toHaveBeenCalled()
     })
 
     it('should use name field if displayName is not provided', async () => {
@@ -163,6 +169,9 @@ describe('Auth', () => {
       } as any)
 
       expect(user).toBe(mockUser)
+      expect(updateProfile).toHaveBeenCalledWith(mockUser, {
+        displayName: 'Test User',
+      })
     })
   })
 

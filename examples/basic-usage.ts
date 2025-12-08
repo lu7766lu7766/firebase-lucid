@@ -205,7 +205,8 @@ async function authExamples() {
     const newUser = await auth.register({
       email: 'newuser@example.com',
       password: 'securePassword123',
-      displayName: 'New User'
+      displayName: 'New User',
+      photoURL: 'https://example.com/avatar.png'
     })
     console.log('Registered user:', newUser.uid)
 
