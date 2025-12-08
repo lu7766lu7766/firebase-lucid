@@ -1,6 +1,7 @@
 // Relations
 export { BaseRelation } from './BaseRelation'
 export { BelongsTo } from './BelongsTo'
+export { BelongsToMany } from './BelongsToMany'
 export { HasMany } from './HasMany'
 export { ManyToMany } from './ManyToMany'
 export { PreloadManager } from './PreloadManager'
@@ -12,6 +13,7 @@ export type {
   BaseRelationConfig,
   HasManyConfig,
   BelongsToConfig,
+  BelongsToManyConfig,
   ManyToManyConfig,
   PreloadCallback,
   RelationDefinition,

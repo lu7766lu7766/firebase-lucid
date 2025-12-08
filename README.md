@@ -7,14 +7,14 @@
 ## 核心特性
 
 - ✨ **Lucid 風格 API** - 優雅的 `User.find()`, `User.query().where().get()` 語法
-- 🎨 **Decorator 支援** - 類似 AdonisJS 的 `@hasMany`、`@belongsTo` decorator
+- 🎨 **Decorator 支援** - 類似 AdonisJS 的 `@hasMany`、`@belongsTo`、`@belongsToMany` decorator
 - 📦 **獨立套件** - 可用於任何 TypeScript/JavaScript 專案
 - 🔥 **完整支援** - Firestore 資料庫 + Authentication 認證
 - 💪 **TypeScript 優先** - 完整的型別定義和自動補全
 - 🎯 **框架無關** - 純 JS/TS API，不依賴 React 或其他框架
 - ⚡ **極簡前置** - 從安裝到使用不超過 5 分鐘
 - 🔄 **批量操作** - 支援批量更新/刪除，自動處理 Firebase 500 筆限制
-- 🔗 **關聯資料表** - 支援 hasMany、belongsTo、manyToMany，含 preload 預載入
+- 🔗 **關聯資料表** - 支援 hasMany、belongsTo、belongsToMany（陣列外鍵）、manyToMany，含 preload 預載入
 - 🎣 **生命週期 Hooks** - beforeCreate、afterSave、beforeDelete 等完整 Hook 支援
 - 🔍 **強型別 Preload** - preload() 關聯名稱有自動補全提示
 
@@ -371,7 +371,7 @@ unsubscribe()
 
 ## 關聯資料表 (Relationships)
 
-firebase-lucid 支援三種關聯類型：`hasMany`（一對多）、`belongsTo`（屬於）和 `manyToMany`（多對多），讓你可以優雅地處理資料間的關聯關係。
+firebase-lucid 支援四種關聯類型：`hasMany`（一對多）、`belongsTo`（單一父）、`belongsToMany`（父在陣列外鍵上對多筆）和 `manyToMany`（多對多），讓你可以優雅地處理資料間的關聯關係。
 
 ### 定義關聯
 
@@ -382,7 +382,7 @@ firebase-lucid 提供兩種定義關聯的方式：**Decorator 風格**（推薦
 類似 AdonisJS Lucid 的優雅語法，使用 TypeScript decorators：
 
 ```typescript
-import { Model, hasMany, belongsTo, manyToMany } from "firebase-lucid"
+import { Model, hasMany, belongsTo, belongsToMany, manyToMany } from "firebase-lucid"
 
 // User Model - 擁有多個 Posts，屬於一個 Organization
 class User extends Model {
@@ -421,6 +421,24 @@ class Post extends Model {
   @belongsTo(() => User, { type: "foreignKey", foreignKey: "userId" })
   declare author: User | null
 }
+
+// Product Model - 被 Order 以陣列外鍵引用
+class Product extends Model {
+  static collectionName = "products"
+
+  name!: string
+}
+
+// Order Model - 透過陣列外鍵對多個 Product
+class Order extends Model {
+  static collectionName = "orders"
+
+  product_ids!: string[]
+
+  // BelongsToMany：陣列外鍵關聯（order 有多個 product_ids 指向 Product 文件 ID）
+  @belongsToMany(() => Product, { foreignKey: "product_ids" })
+  declare products: Product[]
+}
 ```
 
 **Decorator 風格的優點：**
@@ -435,6 +453,10 @@ class Post extends Model {
 
 ```typescript
 import { Model } from "firebase-lucid"
+
+class Product extends Model {
+  static collectionName = "products"
+}
 
 class User extends Model {
   static collectionName = "users"
@@ -455,6 +477,12 @@ class User extends Model {
     return this.belongsTo(Organization, {
       type: "foreignKey",
       foreignKey: "organizationId",
+    })
+  }
+
+  static products() {
+    return this.belongsToMany(Product, {
+      foreignKey: "product_ids",
     })
   }
 }
@@ -494,6 +522,10 @@ posts.forEach((post) => {
   console.log(`Post: ${post.title}`)
   console.log(`Author: ${post.author?.name}`)  // 直接用 post.author
 })
+
+// 預載入陣列外鍵（belongsToMany）
+const orders = await Order.query().preload("products").get()
+console.log(orders[0].products.map(p => p.name))
 
 // 預載入多個關聯
 const users = await User.query()

@@ -82,6 +82,9 @@ export class PreloadManager {
       case 'BelongsTo':
         await this.loadBelongsTo(models, config, sampleRelation)
         break
+      case 'BelongsToMany':
+        await this.loadBelongsToMany(models, config, sampleRelation)
+        break
       case 'HasMany':
         await this.loadHasMany(models, config, sampleRelation)
         break
@@ -146,6 +149,65 @@ export class PreloadManager {
     models.forEach(model => {
       const fkValue = (model as any)[foreignKey]
       model.$relations[config.relation] = relatedById.get(fkValue) || null
+      model.$loadedRelations.add(config.relation)
+    })
+  }
+
+  /**
+   * 批量載入 BelongsToMany（陣列外鍵）
+   */
+  private async loadBelongsToMany<T extends Model>(
+    models: T[],
+    config: PreloadConfig,
+    sampleRelation: any
+  ): Promise<void> {
+    const relationConfig = sampleRelation.getConfig()
+    const foreignKey = relationConfig.foreignKey
+    const ownerKey = relationConfig.ownerKey || 'id'
+
+    const idSet = new Set<any>()
+    models.forEach(m => {
+      const ids = (m as any)[foreignKey]
+      if (Array.isArray(ids)) {
+        ids.filter(v => v != null && v !== '').forEach(v => idSet.add(v))
+      }
+    })
+
+    const allIds = [...idSet]
+
+    if (allIds.length === 0) {
+      models.forEach(m => {
+        m.$relations[config.relation] = []
+        m.$loadedRelations.add(config.relation)
+      })
+      return
+    }
+
+    const RelatedModelClass = sampleRelation.getRelatedModel() as any
+    const chunks = chunk(allIds, 10)
+    const allRelated: any[] = []
+
+    for (const chunkValues of chunks) {
+      let queryBuilder = RelatedModelClass.query().whereIn(ownerKey, chunkValues)
+
+      if (config.callback) {
+        config.callback(queryBuilder)
+      }
+
+      const related = await queryBuilder.get()
+      allRelated.push(...related)
+    }
+
+    const relatedById = new Map<any, any>()
+    allRelated.forEach(r => relatedById.set((r as any)[ownerKey], r))
+
+    models.forEach(model => {
+      const ids = (model as any)[foreignKey]
+      const relatedModels = Array.isArray(ids)
+        ? ids.map((id: any) => relatedById.get(id)).filter(Boolean)
+        : []
+
+      model.$relations[config.relation] = relatedModels
       model.$loadedRelations.add(config.relation)
     })
   }

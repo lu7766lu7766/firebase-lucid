@@ -4,7 +4,7 @@ import type { QueryBuilder } from '../QueryBuilder'
 /**
  * 關聯類型
  */
-export type RelationType = 'hasMany' | 'belongsTo' | 'manyToMany'
+export type RelationType = 'hasMany' | 'belongsTo' | 'manyToMany' | 'belongsToMany'
 
 /**
  * 儲存類型
@@ -54,6 +54,20 @@ export interface BelongsToConfig extends BaseRelationConfig {
   /**
    * 外鍵欄位名稱
    * 例如：Post 的 userId 欄位
+   */
+  foreignKey: string
+  /**
+   * 關聯 model 的 key（預設: 'id'）
+   */
+  ownerKey?: string
+}
+
+/**
+ * BelongsToMany（陣列外鍵）配置
+ */
+export interface BelongsToManyConfig extends BaseRelationConfig {
+  /**
+   * 外鍵陣列欄位名稱（例如 product_ids）
    */
   foreignKey: string
   /**
@@ -143,6 +157,7 @@ export type RelationNames<T> = T extends { $relations: infer R }
 
 // 引入關聯類別（僅用於型別）
 import type { BelongsTo } from './BelongsTo'
+import type { BelongsToMany } from './BelongsToMany'
 import type { HasMany } from './HasMany'
 import type { ManyToMany } from './ManyToMany'
 
@@ -151,6 +166,7 @@ import type { ManyToMany } from './ManyToMany'
  */
 type ExtractRelatedModel<T> =
   T extends BelongsTo<any, infer R> ? R | null :
+  T extends BelongsToMany<any, infer R> ? R[] :
   T extends HasMany<any, infer R> ? R[] :
   T extends ManyToMany<any, infer R> ? R[] :
   unknown

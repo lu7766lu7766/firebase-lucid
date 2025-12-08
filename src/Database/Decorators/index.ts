@@ -1,5 +1,5 @@
 import type { Model } from '../Model'
-import type { HasManyConfig, BelongsToConfig, ManyToManyConfig } from '../Relations/types'
+import type { HasManyConfig, BelongsToConfig, ManyToManyConfig, BelongsToManyConfig } from '../Relations/types'
 
 /**
  * 確保 constructor 上有 $relations 物件
@@ -50,6 +50,27 @@ export function belongsTo<R extends Model>(
     ensureRelationsObject(target.constructor)
     target.constructor.$relations[propertyKey] = function(this: any) {
       return this.belongsTo(relatedModel(), config)
+    }
+  }
+}
+
+/**
+ * BelongsToMany 關聯 decorator（陣列外鍵）
+ *
+ * @example
+ * class Order extends Model {
+ *   @belongsToMany(() => Product, { foreignKey: 'product_ids' })
+ *   declare products: Product[]
+ * }
+ */
+export function belongsToMany<R extends Model>(
+  relatedModel: () => new () => R,
+  config: BelongsToManyConfig
+) {
+  return function (target: any, propertyKey: string) {
+    ensureRelationsObject(target.constructor)
+    target.constructor.$relations[propertyKey] = function(this: any) {
+      return this.belongsToMany(relatedModel(), config)
     }
   }
 }

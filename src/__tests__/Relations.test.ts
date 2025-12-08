@@ -90,6 +90,25 @@ class Group extends Model {
   name!: string
 }
 
+class Product extends Model {
+  static collectionName = 'products'
+
+  name!: string
+}
+
+class Order extends Model {
+  static collectionName = 'orders'
+
+  product_ids!: string[]
+  buyer_id!: string
+
+  static products() {
+    return this.belongsToMany(Product, {
+      foreignKey: 'product_ids'
+    })
+  }
+}
+
 describe('Relations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -283,6 +302,51 @@ describe('Relations', () => {
     })
   })
 
+  describe('BelongsToMany', () => {
+    it('should lazy load related models by array foreign key', async () => {
+      mockGetDocs
+        .mockResolvedValueOnce({
+          empty: false,
+          docs: [{
+            id: 'order-1',
+            data: () => ({ product_ids: ['p1', 'p2'] })
+          }]
+        })
+        .mockResolvedValueOnce({
+          empty: false,
+          docs: [
+            { id: 'p1', data: () => ({ name: 'Product 1' }) },
+            { id: 'p2', data: () => ({ name: 'Product 2' }) }
+          ]
+        })
+
+      const order = await Order.query().first()
+      if (!order) throw new Error('Order not found')
+
+      const relation = (Order as any).products().call(Order, order)
+      const products = await relation.get()
+
+      expect(products).toHaveLength(2)
+      expect(products[0].name).toBe('Product 1')
+      expect(order.$relations.products).toBeUndefined() // lazy load 不會自動掛載
+    })
+
+    it('should return empty array when foreign key array is empty', async () => {
+      mockGetDocs.mockResolvedValueOnce({
+        empty: false,
+        docs: [{ id: 'order-1', data: () => ({ product_ids: [] }) }]
+      })
+
+      const order = await Order.query().first()
+      if (!order) throw new Error('Order not found')
+
+      const relation = (Order as any).products().call(Order, order)
+      const products = await relation.get()
+
+      expect(products).toEqual([])
+    })
+  })
+
   describe('Preload', () => {
     it('should preload BelongsTo relation', async () => {
       // 模擬 Posts 查詢
@@ -394,6 +458,31 @@ describe('Relations', () => {
         .get()
 
       expect(users[0].$relations.posts).toHaveLength(1)
+    })
+
+    it('should preload BelongsToMany (array foreign key)', async () => {
+      mockGetDocs
+        .mockResolvedValueOnce({
+          empty: false,
+          docs: [{
+            id: 'order-1',
+            data: () => ({ product_ids: ['p1', 'p2'] })
+          }]
+        })
+        .mockResolvedValueOnce({
+          empty: false,
+          docs: [
+            { id: 'p1', data: () => ({ name: 'Product 1' }) },
+            { id: 'p2', data: () => ({ name: 'Product 2' }) }
+          ]
+        })
+
+      const orders = await Order.query().preload('products').get()
+
+      expect(orders).toHaveLength(1)
+      expect(orders[0].$isLoaded('products')).toBe(true)
+      expect(orders[0].$relations.products).toHaveLength(2)
+      expect(orders[0].$relations.products?.[0]?.name).toBe('Product 1')
     })
   })
 })

@@ -13,10 +13,11 @@ import { db } from './Database'
 import { QueryBuilder } from './QueryBuilder'
 import { HookManager } from './Hooks/HookManager'
 import { BelongsTo } from './Relations/BelongsTo'
+import { BelongsToMany } from './Relations/BelongsToMany'
 import { HasMany } from './Relations/HasMany'
 import { ManyToMany } from './Relations/ManyToMany'
 import type { ModelOptions, ModelRelations } from './types'
-import type { BelongsToConfig, HasManyConfig, ManyToManyConfig } from './Relations/types'
+import type { BelongsToConfig, HasManyConfig, ManyToManyConfig, BelongsToManyConfig } from './Relations/types'
 import type { AfterSaveContext, BeforeUpdateContext } from './Hooks/types'
 
 export abstract class Model {
@@ -174,6 +175,23 @@ export abstract class Model {
     config: BelongsToConfig
   ): (parent: T) => BelongsTo<T, R> {
     return (parent: T) => new BelongsTo(parent, RelatedModel, config)
+  }
+
+  /**
+   * 定義 BelongsToMany 關聯（陣列外鍵）
+   * @example
+   * class Order extends Model {
+   *   static products() {
+   *     return this.belongsToMany(Product, { foreignKey: 'product_ids' })
+   *   }
+   * }
+   */
+  protected static belongsToMany<T extends Model, R extends Model>(
+    this: new () => T,
+    RelatedModel: new () => R,
+    config: BelongsToManyConfig
+  ): (parent: T) => BelongsToMany<T, R> {
+    return (parent: T) => new BelongsToMany(parent, RelatedModel, config)
   }
 
   /**
