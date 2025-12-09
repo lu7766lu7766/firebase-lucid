@@ -152,6 +152,61 @@ async function queryExamples() {
 }
 
 // ========================================
+// 4.5 分頁範例 (Pagination Examples)
+// ========================================
+
+async function paginationExamples() {
+  console.log('===== Offset Pagination =====')
+
+  // 頁碼分頁
+  const page1 = await User.query()
+    .orderBy('createdAt', 'desc')
+    .limit(10)
+    .get()
+  console.log('Page 1:', page1.length, 'users')
+
+  const page2 = await User.query()
+    .orderBy('createdAt', 'desc')
+    .limit(10)
+    .offset(10)
+    .get()
+  console.log('Page 2:', page2.length, 'users')
+
+  // 動態分頁
+  const currentPage = 3
+  const pageSize = 20
+  const pageData = await User.query()
+    .where('status', '==', 'active')
+    .orderBy('createdAt', 'desc')
+    .limit(pageSize)
+    .offset((currentPage - 1) * pageSize)
+    .get()
+  console.log(`Page ${currentPage}:`, pageData.length, 'users')
+
+  console.log('\n===== Cursor Pagination =====')
+
+  // 游標分頁（無限滾動）
+  const firstPage = await Post.query()
+    .where('status', '==', 'published')
+    .orderBy('createdAt', 'desc')
+    .limit(10)
+    .get()
+  console.log('First page:', firstPage.length, 'posts')
+
+  if (firstPage.length > 0) {
+    const lastDoc = firstPage[firstPage.length - 1]
+
+    const secondPage = await Post.query()
+      .where('status', '==', 'published')
+      .orderBy('createdAt', 'desc')
+      .limit(10)
+      .startAfter(lastDoc.$snapshot)
+      .get()
+    console.log('Second page:', secondPage.length, 'posts')
+  }
+}
+
+// ========================================
 // 5. 文章範例（進階查詢）
 // ========================================
 
@@ -274,6 +329,9 @@ async function main() {
 
   console.log('\n========== Query Examples ==========')
   await queryExamples()
+
+  console.log('\n========== Pagination Examples ==========')
+  await paginationExamples()
 
   console.log('\n========== Post Examples ==========')
   await postExamples()

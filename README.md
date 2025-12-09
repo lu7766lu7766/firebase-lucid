@@ -232,6 +232,202 @@ const exists = await User.query().where("email", "==", "john@example.com").exist
 const count = await User.query().where("status", "==", "active").count()
 ```
 
+#### 分頁查詢
+
+firebase-lucid 提供兩種分頁方式：**offset 分頁**（適合頁碼導航）和 **cursor 分頁**（適合無限滾動）。
+
+##### Offset 分頁（頁碼導航）
+
+使用 `offset()` 和 `limit()` 實現傳統的頁碼分頁：
+
+```typescript
+// 第一頁（前 10 筆）
+const page1 = await User.query()
+  .orderBy('createdAt', 'desc')
+  .limit(10)
+  .get()
+
+// 第二頁（跳過前 10 筆，取接下來的 10 筆）
+const page2 = await User.query()
+  .orderBy('createdAt', 'desc')
+  .limit(10)
+  .offset(10)
+  .get()
+
+// 第三頁
+const page3 = await User.query()
+  .orderBy('createdAt', 'desc')
+  .limit(10)
+  .offset(20)
+  .get()
+
+// 動態頁碼計算
+const page = 5
+const pageSize = 20
+const results = await User.query()
+  .orderBy('createdAt', 'desc')
+  .limit(pageSize)
+  .offset((page - 1) * pageSize)
+  .get()
+```
+
+**重要提醒：**
+
+- ⚠️ **性能考量** - Firestore 沒有原生 offset 支援，內部會載入 `offset + limit` 筆資料後切片
+- ⚠️ **必須使用 limit** - 使用 `offset()` 時必須同時使用 `limit()`，否則會拋出錯誤
+- 📊 **適合場景** - 總資料量較小（< 1000 筆）、需要頁碼導航的場景
+- 💰 **成本提醒** - 每次查詢會消耗 `offset + limit` 筆讀取配額
+
+```typescript
+// ❌ 錯誤：沒有使用 limit
+await User.query().offset(10).get()  // 拋錯！
+
+// ✅ 正確：同時使用 limit
+await User.query().limit(10).offset(10).get()
+```
+
+##### Cursor 分頁（游標導航）
+
+使用 `startAfter()` 實現基於游標的分頁，適合大數據集和無限滾動：
+
+```typescript
+// 第一頁
+const firstPage = await Post.query()
+  .orderBy('createdAt', 'desc')
+  .limit(10)
+  .get()
+
+console.log(`Loaded ${firstPage.length} posts`)
+
+// 第二頁：從第一頁最後一個文件之後開始
+if (firstPage.length > 0) {
+  const lastDoc = firstPage[firstPage.length - 1]
+
+  const secondPage = await Post.query()
+    .orderBy('createdAt', 'desc')
+    .limit(10)
+    .startAfter(lastDoc.$snapshot)  // 使用文件快照作為游標
+    .get()
+}
+
+// 無限滾動範例
+let allPosts: Post[] = []
+let lastSnapshot: DocumentSnapshot | null = null
+
+async function loadMore() {
+  let query = Post.query()
+    .orderBy('createdAt', 'desc')
+    .limit(20)
+
+  if (lastSnapshot) {
+    query = query.startAfter(lastSnapshot)
+  }
+
+  const posts = await query.get()
+
+  if (posts.length > 0) {
+    allPosts.push(...posts)
+    lastSnapshot = posts[posts.length - 1].$snapshot
+  }
+
+  return posts
+}
+```
+
+**重要提醒：**
+
+- ✅ **性能優異** - 只讀取需要的資料，不浪費配額
+- ✅ **實時一致** - 適合即時更新的資料流
+- 📱 **適合場景** - 大數據集、無限滾動、社交媒體動態
+- ⚠️ **需要 orderBy** - 必須配合 `orderBy()` 使用以保證順序
+- ⚠️ **保存快照** - 需要保存每頁最後一個文件的 `$snapshot`
+
+##### 分頁方式比較
+
+| 特性             | Offset 分頁                | Cursor 分頁 (startAfter)    |
+| ---------------- | -------------------------- | --------------------------- |
+| **實現方式**     | `limit().offset()`         | `limit().startAfter()`      |
+| **性能**         | ❌ 較差（讀取額外資料）    | ✅ 優秀（只讀需要的）       |
+| **讀取成本**     | `offset + limit` 筆        | `limit` 筆                  |
+| **頁碼跳轉**     | ✅ 支援任意頁跳轉          | ❌ 只能順序載入             |
+| **UI 模式**      | 頁碼按鈕 (1 2 3 4 5)      | 無限滾動 / 下一頁           |
+| **適合資料量**   | < 1000 筆                  | 任意大小                    |
+| **實時一致性**   | ⚠️ 中等                    | ✅ 高                       |
+| **實現複雜度**   | ✅ 簡單                    | ⚠️ 需要保存游標             |
+| **Firebase 支援**| ❌ 需模擬                  | ✅ 原生支援                 |
+
+##### 選擇建議
+
+**使用 Offset 分頁：**
+- ✅ 需要頁碼導航（用戶跳到第 5 頁）
+- ✅ 總資料量小於 1000 筆
+- ✅ 資料更新不頻繁
+- ✅ 實現簡單優先
+
+**使用 Cursor 分頁：**
+- ✅ 資料量大（> 1000 筆）
+- ✅ 無限滾動 UI
+- ✅ 社交媒體動態流
+- ✅ 需要優化讀取成本
+- ✅ 實時更新的資料
+
+##### 完整範例
+
+```typescript
+// 管理後台：使用 offset 分頁（頁碼導航）
+async function adminUserList(page: number = 1) {
+  const pageSize = 50
+
+  const users = await User.query()
+    .where('role', '==', 'user')
+    .orderBy('createdAt', 'desc')
+    .limit(pageSize)
+    .offset((page - 1) * pageSize)
+    .get()
+
+  return {
+    users,
+    page,
+    pageSize,
+    hasNext: users.length === pageSize
+  }
+}
+
+// 社交媒體：使用 cursor 分頁（無限滾動）
+class FeedManager {
+  private lastSnapshot: DocumentSnapshot | null = null
+  private posts: Post[] = []
+
+  async loadNextPage() {
+    let query = Post.query()
+      .where('status', '==', 'published')
+      .orderBy('publishedAt', 'desc')
+      .limit(20)
+
+    if (this.lastSnapshot) {
+      query = query.startAfter(this.lastSnapshot)
+    }
+
+    const newPosts = await query.get()
+
+    if (newPosts.length > 0) {
+      this.posts.push(...newPosts)
+      this.lastSnapshot = newPosts[newPosts.length - 1].$snapshot
+    }
+
+    return {
+      posts: newPosts,
+      hasMore: newPosts.length === 20
+    }
+  }
+
+  reset() {
+    this.lastSnapshot = null
+    this.posts = []
+  }
+}
+```
+
 #### 批量操作
 
 批量操作允許你一次更新或刪除多個符合條件的文件，非常適合資料清理、狀態同步等場景。

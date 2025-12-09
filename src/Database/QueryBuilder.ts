@@ -30,6 +30,8 @@ import { PreloadManager } from './Relations/PreloadManager'
 export class QueryBuilder<T extends Model, M extends typeof Model = typeof Model> {
   private constraints: QueryConstraint[] = []
   private preloadManager = new PreloadManager()
+  private limitValue: number | null = null
+  private offsetValue: number = 0
 
   constructor(
     private ModelClass: new () => T,
@@ -154,17 +156,61 @@ export class QueryBuilder<T extends Model, M extends typeof Model = typeof Model
    * query().limit(10)
    */
   limit(count: number): this {
+    this.limitValue = count
     this.constraints.push(limit(count))
     return this
   }
 
   /**
-   * 分頁（從某個文件之後開始）
+   * 游標分頁（從某個文件之後開始）- Lucid 風格
+   *
+   * 使用游標分頁可獲得更好的性能，特別適合大數據集的分頁。
+   * 需要配合 orderBy() 使用，並保存上一頁的最後一個文件快照。
+   *
    * @example
-   * query().startAfter(lastDoc)
+   * // 第一頁
+   * const firstPage = await Post.query()
+   *   .orderBy('createdAt', 'desc')
+   *   .limit(10)
+   *   .get()
+   *
+   * @example
+   * // 第二頁（使用第一頁的最後一個文件）
+   * const lastDoc = firstPage[firstPage.length - 1]
+   * const secondPage = await Post.query()
+   *   .orderBy('createdAt', 'desc')
+   *   .limit(10)
+   *   .startAfter(lastDoc.$snapshot)
+   *   .get()
+   *
+   * @param snapshot - Firestore DocumentSnapshot（游標位置）
    */
   startAfter(snapshot: DocumentSnapshot): this {
     this.constraints.push(startAfter(snapshot))
+    return this
+  }
+
+  /**
+   * 跳過前 N 筆結果 - Lucid 風格
+   *
+   * ⚠️ 注意：Firestore 沒有原生 offset 支援，此方法會載入 offset + limit 筆資料後切片。
+   * 對於大量資料分頁，建議使用 startAfter() 進行游標分頁以獲得更好的性能。
+   *
+   * @example
+   * // 跳過前 20 筆，取得接下來的 10 筆
+   * query().limit(10).offset(20).get()
+   *
+   * @example
+   * // 第三頁資料 (每頁 10 筆)
+   * const page = 3
+   * const pageSize = 10
+   * query().limit(pageSize).offset((page - 1) * pageSize).get()
+   */
+  offset(count: number): this {
+    if (count < 0) {
+      throw new Error('偏移量不可為負數 (Offset cannot be negative)')
+    }
+    this.offsetValue = count
     return this
   }
 
@@ -217,14 +263,37 @@ export class QueryBuilder<T extends Model, M extends typeof Model = typeof Model
     const firestore = db.getFirestore()
     const collectionRef = collection(firestore, this.collectionName)
 
-    const q = query(collectionRef, ...this.constraints)
+    // 驗證 offset 使用
+    if (this.offsetValue > 0 && this.limitValue === null) {
+      throw new Error(
+        '使用 offset() 時必須同時使用 limit() (offset() requires limit() to be set)'
+      )
+    }
+
+    // 構建查詢，如有 offset 則調整 limit
+    let constraintsToUse = [...this.constraints]
+
+    if (this.offsetValue > 0 && this.limitValue !== null) {
+      // 移除原始 limit constraint，添加調整後的
+      constraintsToUse = constraintsToUse.filter(
+        c => !(c as any).type || (c as any).type !== 'limit'
+      )
+      constraintsToUse.push(limit(this.offsetValue + this.limitValue))
+    }
+
+    const q = query(collectionRef, ...constraintsToUse)
     const snapshot = await getDocs(q)
 
     const ModelConstructor = this.ModelClass as any
 
-    const models = snapshot.docs.map((doc) => {
-      return ModelConstructor.hydrate(doc.id, doc.data())
+    let models = snapshot.docs.map((doc) => {
+      return ModelConstructor.hydrate(doc.id, doc.data(), doc)
     })
+
+    // 應用 offset 切片
+    if (this.offsetValue > 0) {
+      models = models.slice(this.offsetValue)
+    }
 
     // 執行預載入
     if (this.preloadManager.hasPreloads()) {
@@ -240,15 +309,24 @@ export class QueryBuilder<T extends Model, M extends typeof Model = typeof Model
    * const user = await query().where('email', '==', 'john@example.com').first()
    */
   async first(): Promise<WithRelations<T, M> | null> {
-    // 暫時儲存原有的限制
+    // 暫時儲存原有的狀態
     const originalConstraints = [...this.constraints]
+    const originalLimit = this.limitValue
+    const originalOffset = this.offsetValue
 
     // 加入 limit(1)
-    this.limit(1)
+    this.limitValue = 1
+    this.constraints = this.constraints.filter(
+      c => !(c as any).type || (c as any).type !== 'limit'
+    )
+    this.constraints.push(limit(1))
+
     const results = await this.get()  // get() 會執行 preload
 
-    // 恢復原有的限制
+    // 恢復原有的狀態
     this.constraints = originalConstraints
+    this.limitValue = originalLimit
+    this.offsetValue = originalOffset
 
     return results[0] || null
   }

@@ -171,6 +171,172 @@ describe('QueryBuilder', () => {
     })
   })
 
+  describe('offset()', () => {
+    it('should set offset value', () => {
+      const result = builder.offset(20)
+
+      expect(result).toBe(builder) // chainable
+    })
+
+    it('should be chainable', () => {
+      const result = builder.limit(10).offset(20)
+
+      expect(result).toBe(builder)
+    })
+
+    it('should throw error for negative offset', () => {
+      expect(() => builder.offset(-5)).toThrow('偏移量不可為負數')
+    })
+
+    it('should allow offset of 0', () => {
+      expect(() => builder.offset(0)).not.toThrow()
+    })
+
+    it('should throw error when used without limit', async () => {
+      const mockSnapshot = { docs: [] }
+      mockGetDocs.mockResolvedValue(mockSnapshot)
+
+      await expect(builder.offset(10).get()).rejects.toThrow(
+        '使用 offset() 時必須同時使用 limit()'
+      )
+    })
+
+    it('should apply offset correctly with limit', async () => {
+      // Create 30 mock documents
+      const mockDocs = Array.from({ length: 30 }, (_, i) =>
+        createMockDocSnap(`doc-${i}`, { name: `User ${i}`, index: i })
+      )
+      const mockSnapshot = { docs: mockDocs }
+
+      mockGetDocs.mockResolvedValue(mockSnapshot)
+
+      // Request: skip 20, take 10
+      const results = await builder.limit(10).offset(20).get()
+
+      // Should fetch 30 (20 + 10), then slice [20:30]
+      expect(limit).toHaveBeenCalledWith(30)
+      expect(results).toHaveLength(10)
+      expect(results[0].id).toBe('doc-20') // First result should be the 21st doc
+      expect(results[9].id).toBe('doc-29') // Last result should be the 30th doc
+    })
+
+    it('should work with offset order independent of limit', async () => {
+      const mockDocs = Array.from({ length: 15 }, (_, i) =>
+        createMockDocSnap(`doc-${i}`, { index: i })
+      )
+      const mockSnapshot = { docs: mockDocs }
+
+      mockGetDocs.mockResolvedValue(mockSnapshot)
+
+      // Both orders should work the same
+      const results1 = await builder.limit(10).offset(5).get()
+
+      vi.clearAllMocks()
+      mockGetDocs.mockResolvedValue(mockSnapshot)
+
+      builder = new QueryBuilder(TestUser, 'users')
+      const results2 = await builder.offset(5).limit(10).get()
+
+      expect(results1).toHaveLength(10)
+      expect(results2).toHaveLength(10)
+      expect(results1[0].id).toBe(results2[0].id)
+    })
+
+    it('should work with other query constraints', async () => {
+      // Mock should return exactly offset + limit docs (15 = 10 + 5)
+      // as if Firestore already applied the adjusted limit
+      const mockDocs = Array.from({ length: 15 }, (_, i) =>
+        createMockDocSnap(`doc-${i}`, { name: `User ${i}`, age: 20 + i })
+      )
+      const mockSnapshot = { docs: mockDocs }
+
+      mockGetDocs.mockResolvedValue(mockSnapshot)
+
+      const results = await builder
+        .where('age', '>', 25)
+        .orderBy('age', 'desc')
+        .limit(5)
+        .offset(10)
+        .get()
+
+      expect(results).toHaveLength(5)
+      expect(where).toHaveBeenCalled()
+      expect(orderBy).toHaveBeenCalled()
+      expect(limit).toHaveBeenCalledWith(15) // 10 + 5
+    })
+
+    it('should handle offset larger than result set', async () => {
+      const mockDocs = Array.from({ length: 10 }, (_, i) =>
+        createMockDocSnap(`doc-${i}`, { index: i })
+      )
+      const mockSnapshot = { docs: mockDocs }
+
+      mockGetDocs.mockResolvedValue(mockSnapshot)
+
+      // Offset 20, but only 10 results available
+      const results = await builder.limit(10).offset(20).get()
+
+      expect(results).toHaveLength(0) // All results skipped
+    })
+
+    it('should handle partial offset results', async () => {
+      const mockDocs = Array.from({ length: 12 }, (_, i) =>
+        createMockDocSnap(`doc-${i}`, { index: i })
+      )
+      const mockSnapshot = { docs: mockDocs }
+
+      mockGetDocs.mockResolvedValue(mockSnapshot)
+
+      // Offset 10, limit 10, but only 12 total
+      const results = await builder.limit(10).offset(10).get()
+
+      expect(results).toHaveLength(2) // Only 2 results after skipping 10
+      expect(results[0].id).toBe('doc-10')
+      expect(results[1].id).toBe('doc-11')
+    })
+  })
+
+  describe('Pagination', () => {
+    describe('offset-based pagination', () => {
+      it('should support page-based queries', async () => {
+        const page = 3
+        const pageSize = 10
+        const offset = (page - 1) * pageSize  // 20
+
+        // Mock should return offset + pageSize docs (30 = 20 + 10)
+        // as if Firestore already applied the adjusted limit
+        const mockDocs = Array.from({ length: offset + pageSize }, (_, i) =>
+          createMockDocSnap(`doc-${i}`, { index: i })
+        )
+        const mockSnapshot = { docs: mockDocs }
+
+        mockGetDocs.mockResolvedValue(mockSnapshot)
+
+        // Page 3: skip 20 (pages 1-2), take 10
+        const results = await builder
+          .limit(pageSize)
+          .offset(offset)
+          .get()
+
+        expect(results).toHaveLength(10)
+        expect(results[0].id).toBe('doc-20')
+        expect(results[9].id).toBe('doc-29')
+      })
+    })
+
+    describe('startAfter cursor pagination', () => {
+      it('should chain startAfter for cursor-based pagination', () => {
+        const mockSnapshot1 = { id: 'doc-10' } as any
+
+        builder.orderBy('createdAt', 'desc').limit(10).startAfter(mockSnapshot1)
+
+        expect(startAfter).toHaveBeenCalledWith(mockSnapshot1)
+        expect(orderBy).toHaveBeenCalled()
+        expect(limit).toHaveBeenCalled()
+      })
+    })
+  })
+
   describe('get()', () => {
     it('should execute query and return results', async () => {
       const mockDocs = [

@@ -6,6 +6,7 @@ import {
   updateDoc,
   deleteDoc,
   DocumentData,
+  DocumentSnapshot,
   Timestamp,
   setDoc
 } from 'firebase/firestore'
@@ -24,6 +25,7 @@ export abstract class Model {
   public id?: string
   public createdAt?: Date
   public updatedAt?: Date
+  public $snapshot?: DocumentSnapshot
 
   // 關聯相關
   public $relations: ModelRelations = {}
@@ -262,7 +264,7 @@ export abstract class Model {
       return null
     }
 
-    return (ModelClass as typeof Model).hydrate(docSnap.id, docSnap.data()) as T
+    return (ModelClass as typeof Model).hydrate(docSnap.id, docSnap.data(), docSnap) as T
   }
 
   /**
@@ -401,9 +403,10 @@ export abstract class Model {
   /**
    * 從 Firestore 資料建立實例
    */
-  protected static hydrate(id: string, data: DocumentData): Model {
+  protected static hydrate(id: string, data: DocumentData, snapshot?: DocumentSnapshot): Model {
     const instance = new (this as any)()
     instance.id = id
+    instance.$snapshot = snapshot
 
     // 複製所有屬性
     Object.assign(instance, data)
